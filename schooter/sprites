@@ -1,1 +1,154 @@
-z
+import random
+import pygame
+
+# Initialize pygame
+pygame.init()
+
+# Constants for window size
+WIDTH, HEIGHT = 800, 700
+WHITE = (255, 255, 255)
+
+# Setup the screen and clock
+screen = pygame.display.set_mode((WIDTH, HEIGHT))
+pygame.display.set_caption("My Game")
+FPS = 60
+clock = pygame.time.Clock()
+
+# Font for displaying text
+gameover_font = pygame.font.SysFont("Arial", 40)
+score_font = pygame.font.SysFont("Arial", 30)  # Font for score
+
+# Game state
+gameover = False
+running = True
+score = 0  # Initialize score
+
+# GameObject class to represent all game entities
+class GameObject(pygame.sprite.Sprite):
+    def __init__(self, x, y):
+        super().__init__()
+
+# Player class (Square) - Replacing with an image
+class Square(GameObject):
+    def __init__(self, x, y):
+        super().__init__(x, y)
+        self.image = pygame.image.load("sprites/Ak47.png")  # Load player image
+        self.image = pygame.transform.scale(self.image, (80, 80))  # Scale the image
+        self.rect = self.image.get_rect()
+        self.rect.topleft = (x, y)
+
+    def update(self):
+        keys = pygame.key.get_pressed()
+        if keys[pygame.K_UP] and self.rect.top > 0:
+            self.rect.y -= 5
+        if keys[pygame.K_DOWN] and self.rect.bottom < HEIGHT:
+            self.rect.y += 5
+
+# Bullet class
+class Bullet(GameObject):
+    def __init__(self, x, y):
+        super().__init__(x, y)
+        self.image = pygame.Surface((20, 20), pygame.SRCALPHA)
+        pygame.draw.circle(self.image, "Red", (10, 10), 5)
+        self.rect = self.image.get_rect()
+        self.rect.center = (x, y)
+
+    def update(self):
+        self.rect.x += 5
+        if self.rect.right > WIDTH:
+            self.kill()
+
+# Enemy class (Green circle) - Replacing with an image
+class Enemy(GameObject):
+    def __init__(self, x, y):
+        super().__init__(x, y)
+        self.image = pygame.image.load("sprites/enemy.png")  # Load enemy image
+        self.image = pygame.transform.scale(self.image, (60, 60))  # Scale the image
+        self.rect = self.image.get_rect()
+        self.rect.center = (x, y)
+
+    def update(self):
+        self.rect.x -= 3  # Move the enemy to the left
+        # Check if enemy touches the left side of the screen
+        if self.rect.left <= 0:
+            global gameover
+            gameover = True  # Game over if it hits the left side
+            self.kill()  # Remove the enemy
+
+# Groups to hold game objects
+square = Square(5, HEIGHT // 2)
+squares = pygame.sprite.Group()
+squares.add(square)
+
+bullets = pygame.sprite.Group()
+enemy_circles = pygame.sprite.Group()
+
+# Timing variables
+last_spawn_time = 0
+
+while running:
+    for event in pygame.event.get():
+        if event.type == pygame.QUIT:
+            running = False
+        elif event.type == pygame.KEYDOWN:
+            if event.key == pygame.K_SPACE and gameover:
+                # Reset game state
+                gameover = False
+                squares.empty()  # Remove all squares
+                bullets.empty()  # Remove all bullets
+                enemy_circles.empty()  # Remove all enemies
+                square = Square(5, HEIGHT // 2)  # Reset square position
+                squares.add(square)  # Add back the square
+
+                score = 0  # Reset score to 0
+            elif not gameover and event.key == pygame.K_SPACE:
+                # Spawn a bullet
+                bullet = Bullet(square.rect.x + 90, square.rect.y + 40)
+                bullets.add(bullet)
+
+    if not gameover:
+        # Spawn enemies every second
+        current_time = pygame.time.get_ticks()
+        if current_time - last_spawn_time > 1000:
+            enemy_circle = Enemy(WIDTH, random.randint(0, HEIGHT))
+            enemy_circles.add(enemy_circle)
+            last_spawn_time = current_time
+
+        # Check for collisions between bullets and enemies
+        collisions = pygame.sprite.groupcollide(bullets, enemy_circles, True, True)
+        if collisions:
+            score += 10  # Increase score by 10 for each enemy destroyed
+
+        # Update game objects
+        squares.update()
+        bullets.update()
+        enemy_circles.update()
+
+        # Check for collisions with the square (player)
+        if pygame.sprite.spritecollide(square, enemy_circles, False):
+            gameover = True
+
+    # Draw everything
+    screen.fill(WHITE)
+
+    if gameover:
+        # Display game over screen
+        screen.fill("Black")
+        gameover_text = gameover_font.render("GAME OVER", True, WHITE)
+        screen.blit(gameover_text, (WIDTH // 2 - gameover_text.get_width() // 2, HEIGHT // 2))
+        restart_text = gameover_font.render("Press SPACE to Restart", True, WHITE)
+        screen.blit(restart_text, (WIDTH // 2 - restart_text.get_width() // 2, HEIGHT // 2 + 50))
+    else:
+        # Draw all active game objects
+        squares.draw(screen)
+        bullets.draw(screen)
+        enemy_circles.draw(screen)
+
+        # Draw the score
+        score_text = score_font.render(f"Score: {score}", True, (0, 0, 0))
+        screen.blit(score_text, (10, 10))
+
+    pygame.display.flip()
+    clock.tick(FPS)
+
+pygame.quit()
